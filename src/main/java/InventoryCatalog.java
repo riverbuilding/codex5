@@ -5,10 +5,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 
 public class InventoryCatalog {
     private final Map<String, Product> products = new HashMap<>();
     private final PriceBook priceBook = new PriceBook();
+    private final Map<String, Integer> unitsSoldByProductId = new HashMap<>();
 
     public void addProduct(Product product) {
         if (product == null) {
@@ -34,7 +36,7 @@ public class InventoryCatalog {
         priceBook.setPrice(productId, currency, price);
     }
 
-    public java.util.Optional<BigDecimal> getPrice(String productId, Currency currency) {
+    public Optional<BigDecimal> getPrice(String productId, Currency currency) {
         Product product = validateKnownProduct(productId);
         return priceBook.getPrice(product.getProductId(), currency);
     }
@@ -74,6 +76,47 @@ public class InventoryCatalog {
             throw new IllegalArgumentException("Cannot remove more stock than available");
         }
         product.decreaseQuantity(quantity);
+    }
+
+    public void recordSale(String productId, int quantity) {
+        validateKnownProduct(productId);
+        if (quantity <= 0) {
+            throw new IllegalArgumentException("recordSale quantity must be positive");
+        }
+
+        removeStock(productId, quantity);
+        unitsSoldByProductId.merge(productId, quantity, Integer::sum);
+    }
+
+    public List<ProductSales> topBestSellingProducts(int n) {
+        if (n <= 0) {
+            throw new IllegalArgumentException("n must be positive");
+        }
+
+        return unitsSoldByProductId.entrySet().stream()
+                .filter(e -> e.getValue() > 0)
+                .sorted(
+                        Map.Entry.<String, Integer>comparingByValue(Comparator.reverseOrder())
+                                .thenComparing(Map.Entry.comparingByKey())
+                )
+                .limit(n)
+                .map(e -> new ProductSales(e.getKey(), e.getValue()))
+                .toList();
+    }
+
+    public List<Product> lowStockProducts(int threshold) {
+        if (threshold < 0) {
+            throw new IllegalArgumentException("threshold cannot be negative");
+        }
+
+        return products.values().stream()
+                .filter(p -> p.getQuantity() <= threshold)
+                .sorted(
+                        Comparator.comparingInt(Product::getQuantity)
+                                .thenComparing(Product::getProductId)
+                )
+                .map(Product::copy)
+                .toList();
     }
 
     private Product validateKnownProduct(String productId) {

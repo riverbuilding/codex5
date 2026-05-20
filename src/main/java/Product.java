@@ -56,14 +56,11 @@ public class Product {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Product product)) return false;
-        return popularity == product.popularity
-                && Objects.equals(productId, product.productId)
-                && Objects.equals(name, product.name)
-                && Objects.equals(price, product.price);
+        return Objects.equals(productId, product.productId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(productId, name, price, popularity);
+        return Objects.hash(productId);
     }
 }

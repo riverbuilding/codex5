@@ -19,6 +19,14 @@ class InventoryCatalogTest {
     }
 
     @Test
+    void productEqualityUsesProductIdOnly() {
+        Product p1 = new Product("P-1", "A", new BigDecimal("1.00"), 1, 1);
+        Product p2 = new Product("P-1", "B", new BigDecimal("2.00"), 9, 9);
+        assertEquals(p1, p2);
+        assertEquals(p1.hashCode(), p2.hashCode());
+    }
+
+    @Test
     void getPriceThrowsForUnknownProduct() {
         InventoryCatalog catalog = new InventoryCatalog();
         NoSuchElementException ex = assertThrows(NoSuchElementException.class,
@@ -86,7 +94,6 @@ class InventoryCatalogTest {
         assertEquals(List.of("P-1", "P-2"), sorted.stream().map(Product::getProductId).toList());
     }
 
-
     @Test
     void listProductsSortedByPriceExcludesProductsWithoutRequestedCurrency() {
         InventoryCatalog catalog = new InventoryCatalog();
@@ -98,6 +105,73 @@ class InventoryCatalogTest {
         List<Product> sorted = catalog.listProductsSortedByPrice(USD);
         assertEquals(List.of("P-1"), sorted.stream().map(Product::getProductId).toList());
     }
+
+    @Test
+    void recordSaleShouldDecreaseStockAndTrackUnitsSold() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        catalog.addProduct(new Product("P-1", "One", new BigDecimal("1.00"), 10, 1));
+
+        catalog.recordSale("P-1", 3);
+        catalog.recordSale("P-1", 2);
+
+        assertEquals(5, catalog.getProduct("P-1").getQuantity());
+        assertEquals(List.of(new ProductSales("P-1", 5)), catalog.topBestSellingProducts(10));
+    }
+
+    @Test
+    void recordSaleValidationsShouldApply() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        catalog.addProduct(new Product("P-1", "One", new BigDecimal("1.00"), 2, 1));
+
+        IllegalArgumentException qEx = assertThrows(IllegalArgumentException.class,
+                () -> catalog.recordSale("P-1", 0));
+        assertEquals("recordSale quantity must be positive", qEx.getMessage());
+
+        IllegalArgumentException stockEx = assertThrows(IllegalArgumentException.class,
+                () -> catalog.recordSale("P-1", 5));
+        assertEquals("Cannot remove more stock than available", stockEx.getMessage());
+
+        NoSuchElementException missingEx = assertThrows(NoSuchElementException.class,
+                () -> catalog.recordSale("UNKNOWN", 1));
+        assertEquals("Unknown productId: UNKNOWN", missingEx.getMessage());
+    }
+
+    @Test
+    void topBestSellingProductsShouldSortAndValidateN() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        catalog.addProduct(new Product("P-2", "Two", new BigDecimal("1.00"), 50, 1));
+        catalog.addProduct(new Product("P-1", "One", new BigDecimal("1.00"), 50, 1));
+        catalog.addProduct(new Product("P-3", "Three", new BigDecimal("1.00"), 50, 1));
+
+        catalog.recordSale("P-1", 7);
+        catalog.recordSale("P-2", 9);
+        catalog.recordSale("P-3", 9);
+
+        assertEquals(
+                List.of(new ProductSales("P-2", 9), new ProductSales("P-3", 9)),
+                catalog.topBestSellingProducts(2)
+        );
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> catalog.topBestSellingProducts(0));
+        assertEquals("n must be positive", ex.getMessage());
+    }
+
+    @Test
+    void lowStockProductsShouldFilterSortAndValidateThreshold() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        catalog.addProduct(new Product("P-2", "Two", new BigDecimal("1.00"), 1, 1));
+        catalog.addProduct(new Product("P-1", "One", new BigDecimal("1.00"), 1, 1));
+        catalog.addProduct(new Product("P-3", "Three", new BigDecimal("1.00"), 3, 1));
+
+        List<Product> lowStock = catalog.lowStockProducts(2);
+        assertEquals(List.of("P-1", "P-2"), lowStock.stream().map(Product::getProductId).toList());
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> catalog.lowStockProducts(-1));
+        assertEquals("threshold cannot be negative", ex.getMessage());
+    }
+
     @Test
     void getProductShouldReturnCopy() {
         InventoryCatalog catalog = new InventoryCatalog();
