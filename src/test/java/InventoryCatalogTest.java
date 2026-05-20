@@ -27,13 +27,11 @@ class InventoryCatalogTest {
     }
 
     @Test
-    void getPriceThrowsWhenCurrencyPriceMissingForKnownProduct() {
+    void getPriceReturnsEmptyWhenCurrencyPriceMissingForKnownProduct() {
         InventoryCatalog catalog = new InventoryCatalog();
         catalog.addProduct(sampleProduct());
 
-        NoSuchElementException ex = assertThrows(NoSuchElementException.class,
-                () -> catalog.getPrice("P-100", EUR));
-        assertEquals("No price for productId P-100 in currency EUR", ex.getMessage());
+        assertEquals(java.util.Optional.empty(), catalog.getPrice("P-100", EUR));
     }
 
     @Test
@@ -42,7 +40,7 @@ class InventoryCatalogTest {
         catalog.addProduct(sampleProduct());
         catalog.setPrice("P-100", USD, new BigDecimal("11.50"));
 
-        assertEquals(new BigDecimal("11.50"), catalog.getPrice("P-100", USD));
+        assertEquals(java.util.Optional.of(new BigDecimal("11.50")), catalog.getPrice("P-100", USD));
     }
 
     @Test
@@ -88,6 +86,18 @@ class InventoryCatalogTest {
         assertEquals(List.of("P-1", "P-2"), sorted.stream().map(Product::getProductId).toList());
     }
 
+
+    @Test
+    void listProductsSortedByPriceExcludesProductsWithoutRequestedCurrency() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        catalog.addProduct(new Product("P-1", "One", new BigDecimal("1.00"), 1, 1));
+        catalog.addProduct(new Product("P-2", "Two", new BigDecimal("1.00"), 1, 1));
+
+        catalog.setPrice("P-1", USD, new BigDecimal("10.00"));
+
+        List<Product> sorted = catalog.listProductsSortedByPrice(USD);
+        assertEquals(List.of("P-1"), sorted.stream().map(Product::getProductId).toList());
+    }
     @Test
     void getProductShouldReturnCopy() {
         InventoryCatalog catalog = new InventoryCatalog();

@@ -34,11 +34,9 @@ public class InventoryCatalog {
         priceBook.setPrice(productId, currency, price);
     }
 
-    public BigDecimal getPrice(String productId, Currency currency) {
+    public java.util.Optional<BigDecimal> getPrice(String productId, Currency currency) {
         Product product = validateKnownProduct(productId);
-        return priceBook.getPrice(product.getProductId(), currency)
-                .orElseThrow(() -> new NoSuchElementException(
-                        "No price for productId " + productId + " in currency " + currency.getCurrencyCode()));
+        return priceBook.getPrice(product.getProductId(), currency);
     }
 
     public List<Product> listProductsSortedByPrice(Currency currency) {
@@ -47,11 +45,15 @@ public class InventoryCatalog {
         }
 
         Comparator<Product> byRules = Comparator
-                .comparing((Product p) -> getPrice(p.getProductId(), currency))
+                .comparing((Product p) -> getPrice(p.getProductId(), currency).orElseThrow())
                 .thenComparing(Comparator.comparingInt(Product::getPopularity).reversed())
                 .thenComparing(Product::getProductId);
 
-        return products.values().stream().map(Product::copy).sorted(byRules).toList();
+        return products.values().stream()
+                .filter(p -> getPrice(p.getProductId(), currency).isPresent())
+                .map(Product::copy)
+                .sorted(byRules)
+                .toList();
     }
 
     public void addStock(String productId, int quantity) {
