@@ -47,22 +47,28 @@ public class Product {
     }
 
     void increaseQuantity(int delta) {
-        this.quantity += delta;
+        this.quantity = Math.addExact(this.quantity, delta);
     }
 
     void decreaseQuantity(int delta) {
-        this.quantity -= delta;
+        this.quantity = Math.subExact(this.quantity, delta);
+    }
+
+    Product copy() {
+        return new Product(productId, name, price, quantity);
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Product product)) return false;
-        return quantity == product.quantity && Objects.equals(productId, product.productId) && Objects.equals(name, product.name) && Objects.equals(price, product.price);
+        return Objects.equals(productId, product.productId)
+                && Objects.equals(name, product.name)
+                && Objects.equals(price, product.price);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(productId, name, price, quantity);
+        return Objects.hash(productId, name, price);
     }
 }

@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.NoSuchElementException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class InventoryCatalogTest {
@@ -34,6 +35,18 @@ class InventoryCatalogTest {
     }
 
     @Test
+    void getProductShouldReturnCopy() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        Product original = sampleProduct();
+        catalog.addProduct(original);
+
+        Product fromCatalog = catalog.getProduct("P-100");
+
+        assertEquals(original, fromCatalog);
+        assertNotSame(original, fromCatalog);
+    }
+
+    @Test
     void addProductWithNegativePriceShouldFail() {
         IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
                 () -> new Product("P-101", "BadPrice", new BigDecimal("-1.00"), 1));
@@ -60,6 +73,16 @@ class InventoryCatalogTest {
                 () -> catalog.addStock("INVALID", 5));
 
         assertEquals("Unknown productId: INVALID", ex.getMessage());
+    }
+
+    @Test
+    void catalogApiShouldRejectBlankProductId() {
+        InventoryCatalog catalog = new InventoryCatalog();
+
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
+                () -> catalog.getProduct("  "));
+
+        assertEquals("productId must not be blank", ex.getMessage());
     }
 
     @Test
