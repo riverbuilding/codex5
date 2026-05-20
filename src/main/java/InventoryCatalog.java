@@ -60,15 +60,30 @@ public class InventoryCatalog {
     public void addStock(String productId, int quantity) {
         validateProductId(productId);
         if (quantity <= 0) throw new IllegalArgumentException("addStock quantity must be positive");
-        getInternalProduct(productId).increaseQuantity(quantity);
+
+        products.compute(productId, (id, product) -> {
+            if (product == null) {
+                throw new NoSuchElementException("Unknown productId: " + productId);
+            }
+            product.increaseQuantity(quantity);
+            return product;
+        });
     }
 
     public void removeStock(String productId, int quantity) {
         validateProductId(productId);
         if (quantity <= 0) throw new IllegalArgumentException("removeStock quantity must be positive");
-        Product product = getInternalProduct(productId);
-        if (quantity > product.getQuantity()) throw new IllegalArgumentException("Cannot remove more stock than available");
-        product.decreaseQuantity(quantity);
+
+        products.compute(productId, (id, product) -> {
+            if (product == null) {
+                throw new NoSuchElementException("Unknown productId: " + productId);
+            }
+            if (quantity > product.getQuantity()) {
+                throw new IllegalArgumentException("Cannot remove more stock than available");
+            }
+            product.decreaseQuantity(quantity);
+            return product;
+        });
     }
 
     public void recordSale(String productId, int quantity) {
