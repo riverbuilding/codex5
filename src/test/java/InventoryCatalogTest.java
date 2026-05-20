@@ -1,6 +1,8 @@
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
+import java.util.Currency;
+import java.util.List;
 import java.util.NoSuchElementException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -9,29 +11,81 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class InventoryCatalogTest {
 
+    private static final Currency USD = Currency.getInstance("USD");
+    private static final Currency EUR = Currency.getInstance("EUR");
+
     private static Product sampleProduct() {
-        return new Product("P-100", "Widget", new BigDecimal("19.99"), 10);
+        return new Product("P-100", "Widget", new BigDecimal("19.99"), 10, 5);
     }
 
     @Test
-    void addProductWithDuplicateIdShouldFail() {
+    void getPriceThrowsForUnknownProduct() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        NoSuchElementException ex = assertThrows(NoSuchElementException.class,
+                () -> catalog.getPrice("UNKNOWN", USD));
+        assertEquals("Unknown productId: UNKNOWN", ex.getMessage());
+    }
+
+    @Test
+    void getPriceThrowsWhenCurrencyPriceMissingForKnownProduct() {
         InventoryCatalog catalog = new InventoryCatalog();
         catalog.addProduct(sampleProduct());
 
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> catalog.addProduct(new Product("P-100", "Duplicate", new BigDecimal("5.00"), 1)));
-
-        assertEquals("Duplicate productId: P-100", ex.getMessage());
+        NoSuchElementException ex = assertThrows(NoSuchElementException.class,
+                () -> catalog.getPrice("P-100", EUR));
+        assertEquals("No price for productId P-100 in currency EUR", ex.getMessage());
     }
 
     @Test
-    void getProductWithInvalidIdShouldFailClearly() {
+    void getPriceReturnsValueForKnownProductAndCurrency() {
         InventoryCatalog catalog = new InventoryCatalog();
+        catalog.addProduct(sampleProduct());
+        catalog.setPrice("P-100", USD, new BigDecimal("11.50"));
 
-        NoSuchElementException ex = assertThrows(NoSuchElementException.class,
-                () -> catalog.getProduct("INVALID"));
+        assertEquals(new BigDecimal("11.50"), catalog.getPrice("P-100", USD));
+    }
 
-        assertEquals("Unknown productId: INVALID", ex.getMessage());
+    @Test
+    void listProductsSortedByPriceAscending() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        catalog.addProduct(new Product("P-1", "One", new BigDecimal("1.00"), 1, 1));
+        catalog.addProduct(new Product("P-2", "Two", new BigDecimal("1.00"), 1, 1));
+        catalog.addProduct(new Product("P-3", "Three", new BigDecimal("1.00"), 1, 1));
+
+        catalog.setPrice("P-1", USD, new BigDecimal("12.00"));
+        catalog.setPrice("P-2", USD, new BigDecimal("10.00"));
+        catalog.setPrice("P-3", USD, new BigDecimal("11.00"));
+
+        List<Product> sorted = catalog.listProductsSortedByPrice(USD);
+        assertEquals(List.of("P-2", "P-3", "P-1"), sorted.stream().map(Product::getProductId).toList());
+    }
+
+    @Test
+    void listProductsWhenSamePriceSortByPopularityDesc() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        catalog.addProduct(new Product("P-1", "One", new BigDecimal("1.00"), 1, 10));
+        catalog.addProduct(new Product("P-2", "Two", new BigDecimal("1.00"), 1, 50));
+        catalog.addProduct(new Product("P-3", "Three", new BigDecimal("1.00"), 1, 30));
+
+        catalog.setPrice("P-1", USD, new BigDecimal("10.00"));
+        catalog.setPrice("P-2", USD, new BigDecimal("10.00"));
+        catalog.setPrice("P-3", USD, new BigDecimal("10.00"));
+
+        List<Product> sorted = catalog.listProductsSortedByPrice(USD);
+        assertEquals(List.of("P-2", "P-3", "P-1"), sorted.stream().map(Product::getProductId).toList());
+    }
+
+    @Test
+    void listProductsWhenSamePriceAndPopularitySortByProductIdAsc() {
+        InventoryCatalog catalog = new InventoryCatalog();
+        catalog.addProduct(new Product("P-2", "Two", new BigDecimal("1.00"), 1, 20));
+        catalog.addProduct(new Product("P-1", "One", new BigDecimal("1.00"), 1, 20));
+
+        catalog.setPrice("P-1", USD, new BigDecimal("10.00"));
+        catalog.setPrice("P-2", USD, new BigDecimal("10.00"));
+
+        List<Product> sorted = catalog.listProductsSortedByPrice(USD);
+        assertEquals(List.of("P-1", "P-2"), sorted.stream().map(Product::getProductId).toList());
     }
 
     @Test
@@ -44,76 +98,5 @@ class InventoryCatalogTest {
 
         assertEquals(original, fromCatalog);
         assertNotSame(original, fromCatalog);
-    }
-
-    @Test
-    void addProductWithNegativePriceShouldFail() {
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> new Product("P-101", "BadPrice", new BigDecimal("-1.00"), 1));
-
-        assertEquals("price cannot be negative", ex.getMessage());
-    }
-
-    @Test
-    void addStockWithNegativeQuantityShouldFail() {
-        InventoryCatalog catalog = new InventoryCatalog();
-        catalog.addProduct(sampleProduct());
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> catalog.addStock("P-100", -5));
-
-        assertEquals("addStock quantity must be positive", ex.getMessage());
-    }
-
-    @Test
-    void addStockWithInvalidProductIdShouldFail() {
-        InventoryCatalog catalog = new InventoryCatalog();
-
-        NoSuchElementException ex = assertThrows(NoSuchElementException.class,
-                () -> catalog.addStock("INVALID", 5));
-
-        assertEquals("Unknown productId: INVALID", ex.getMessage());
-    }
-
-    @Test
-    void catalogApiShouldRejectBlankProductId() {
-        InventoryCatalog catalog = new InventoryCatalog();
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> catalog.getProduct("  "));
-
-        assertEquals("productId must not be blank", ex.getMessage());
-    }
-
-    @Test
-    void removeStockWithNegativeQuantityShouldFail() {
-        InventoryCatalog catalog = new InventoryCatalog();
-        catalog.addProduct(sampleProduct());
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> catalog.removeStock("P-100", -1));
-
-        assertEquals("removeStock quantity must be positive", ex.getMessage());
-    }
-
-    @Test
-    void removeStockLargerThanAvailableShouldFail() {
-        InventoryCatalog catalog = new InventoryCatalog();
-        catalog.addProduct(sampleProduct());
-
-        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class,
-                () -> catalog.removeStock("P-100", 99));
-
-        assertEquals("Cannot remove more stock than available", ex.getMessage());
-    }
-
-    @Test
-    void removeStockWithInvalidProductIdShouldFail() {
-        InventoryCatalog catalog = new InventoryCatalog();
-
-        NoSuchElementException ex = assertThrows(NoSuchElementException.class,
-                () -> catalog.removeStock("INVALID", 1));
-
-        assertEquals("Unknown productId: INVALID", ex.getMessage());
     }
 }

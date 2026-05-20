@@ -1,9 +1,14 @@
+import java.math.BigDecimal;
+import java.util.Comparator;
+import java.util.Currency;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 
 public class InventoryCatalog {
     private final Map<String, Product> products = new HashMap<>();
+    private final PriceBook priceBook = new PriceBook();
 
     public void addProduct(Product product) {
         if (product == null) {
@@ -21,27 +26,44 @@ public class InventoryCatalog {
 
     public Product getProduct(String productId) {
         validateProductId(productId);
+        return getInternalProduct(productId).copy();
+    }
 
-        Product product = products.get(productId);
-        if (product == null) {
-            throw new NoSuchElementException("Unknown productId: " + productId);
+    public void setPrice(String productId, Currency currency, BigDecimal price) {
+        validateKnownProduct(productId);
+        priceBook.setPrice(productId, currency, price);
+    }
+
+    public BigDecimal getPrice(String productId, Currency currency) {
+        Product product = validateKnownProduct(productId);
+        return priceBook.getPrice(product.getProductId(), currency)
+                .orElseThrow(() -> new NoSuchElementException(
+                        "No price for productId " + productId + " in currency " + currency.getCurrencyCode()));
+    }
+
+    public List<Product> listProductsSortedByPrice(Currency currency) {
+        if (currency == null) {
+            throw new IllegalArgumentException("currency must not be null");
         }
-        return product.copy();
+
+        Comparator<Product> byRules = Comparator
+                .comparing((Product p) -> getPrice(p.getProductId(), currency))
+                .thenComparing(Comparator.comparingInt(Product::getPopularity).reversed())
+                .thenComparing(Product::getProductId);
+
+        return products.values().stream().map(Product::copy).sorted(byRules).toList();
     }
 
     public void addStock(String productId, int quantity) {
         validateProductId(productId);
-
         if (quantity <= 0) {
             throw new IllegalArgumentException("addStock quantity must be positive");
         }
-        Product product = getInternalProduct(productId);
-        product.increaseQuantity(quantity);
+        getInternalProduct(productId).increaseQuantity(quantity);
     }
 
     public void removeStock(String productId, int quantity) {
         validateProductId(productId);
-
         if (quantity <= 0) {
             throw new IllegalArgumentException("removeStock quantity must be positive");
         }
@@ -50,6 +72,11 @@ public class InventoryCatalog {
             throw new IllegalArgumentException("Cannot remove more stock than available");
         }
         product.decreaseQuantity(quantity);
+    }
+
+    private Product validateKnownProduct(String productId) {
+        validateProductId(productId);
+        return getInternalProduct(productId);
     }
 
     private Product getInternalProduct(String productId) {
